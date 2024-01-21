@@ -1,0 +1,174 @@
+import java.util.*;
+
+COMPILER Compiler
+
+public SymbolTable st;
+public CodeGenerator gen;
+
+private int MAIN_LABEL = -1;
+
+private static final int // types
+        UNDEFINED=0, INTEGER=1, BOOLEAN=2, INTEGER_ARRAY=3;
+
+public static final Map<Integer, String> TYPES_INVERSE;
+static {
+	  Map<Integer, String> m = new HashMap<Integer, String>();
+	  m.put(0, "undefined");
+	  m.put(1, "int");
+	  m.put(2, "boolean");
+	  m.put(3, "int[]");
+	  TYPES_INVERSE = Collections.unmodifiableMap(m);
+}
+
+private void checkBoolean(int type, String operation) {
+	if (type != BOOLEAN) 
+  		SemErr("type error: " + operation + " expects boolean type, got " + TYPES_INVERSE.get(type));
+}
+
+private void checkInt(int type, String operation) {
+	if (type != INTEGER) 
+  		SemErr("type error: " + operation + " expects integer type, got " + TYPES_INVERSE.get(type));
+}
+
+private void checkArrayType(int type, String operation) {
+	if (type != INTEGER_ARRAY) 
+		SemErr("type error: " +operation + "expects integer array type, got " + TYPES_INVERSE.get(type));
+}
+
+private void checkAssignmentType(int expected, int type) {
+	if (expected == type) return;
+	
+	SemErr("incompatible types: trying to assign " + TYPES_INVERSE.get(type) + " value to " + TYPES_INVERSE.get(expected) + " variable");
+}
+
+private int safeParseInt(String val) {
+  try {
+    return Integer.parseInt(val);
+  } catch (NumberFormatException e) {
+    SemErr("too large integer");
+    return Integer.MAX_VALUE;
+  }
+}
+
+private SymbolTable.Function newFunction(String name, int type) {
+  SymbolTable.Function fn = st.addFunction(name, type, gen.newLabel());
+  gen.emit("LAB", fn.label);//gen.emit("LAB, fn.label);
+  st.openScope(fn.type);
+  return fn;
+}
+
+private void functionReturn() {
+  if (st.top_scope.level == 1 && st.top_scope.return_type == UNDEFINED) return;
+  gen.emit("RET");
+}
+
+private class IdAccessData {
+	public boolean local; // 'local' or 'dynamic'
+	public SymbolTable.Variable var; // The variable in question
+}
+
+CHARACTERS
+  cr = '\r'.
+  lf = '\n'.
+  tab = '\t'.
+
+  zero          = '0'.
+  nonZeroDigit  = "123456789".
+  digit         = zero + nonZeroDigit .
+  letter        = 'A' .. 'Z' + 'a' .. 'z' + '_' + '$'.
+
+  char          = ANY - "'" - '\\' - cr - lf.
+  stringChar    = ANY - "\"" - '\\' - cr - lf.
+
+TOKENS
+  identifier    = letter { letter | digit }.
+  integer       = digit { digit }.
+
+COMMENTS FROM "/*" TO "*/" NESTED
+COMMENTS FROM "//" TO lf
+
+IGNORE cr + lf + tab
+
+
+PRODUCTIONS
+	
+Compiler
+=
+"begin" 
+{
+	 prgHeader varDefs statementSeq
+}
+"end"
+.
+  
+prgHeader
+=
+"program" identifier ";"
+.
+    
+varDefs
+=
+[
+	 "var" varSeq 
+	{
+		 varSeq
+	}
+	
+]
+.
+    
+varSeq
+=
+identifier 
+{
+	 "," identifier
+}
+|
+type ";"
+.
+	
+type
+=
+"integer"
+|
+"string"
+.
+    
+statementSeq
+=
+{
+	 
+	(
+		 simpleAssignment
+		|
+		 complexAssignment
+	)
+	 ";"
+}
+.
+    
+simpleAssignment
+=
+identifier ":=" operand ";"
+.
+    
+complexAssignment
+=
+identifier ":=" operand "." mathOp "." operand ";"
+.
+	
+operand
+=
+identifier
+|
+integer
+.
+	
+mathOp
+=
+"+"
+|
+"-"
+.
+
+END Compiler.
